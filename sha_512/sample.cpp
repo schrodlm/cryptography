@@ -105,17 +105,12 @@ int findHash(int bits, char **message, char **hash)
     {
       std::cout << "RAND_bytes failed" << std::endl;
     }
-     //open_text[MESS_LENGTH] = '\0';
 
     EVP_DigestInit_ex(mdctx, md, NULL);
     EVP_DigestUpdate(mdctx, open_text, MESS_LENGTH);
     EVP_DigestFinal_ex(mdctx, md_value, &md_len);
 
     EVP_MD_CTX_destroy(mdctx);
-
-    // Add NULL byte
-   
-
   } while (!checkHash(bits, md_value));
 
   std::ostringstream oss;
@@ -143,17 +138,6 @@ int findHash(int bits, char **message, char **hash)
   OPENSSL_strlcpy(*hash, hash_const.c_str(), sizeof(char) * hash_const.size()+1);
 
   EVP_cleanup();
-
-    std::cout << *message << std::endl;
-    std::cout << *hash  << std::endl;
-    // std::cout << strlen(*message) <<std::endl;
-    // std::cout << strlen(*hash) <<std::endl;
-    // std::cout << hash_const.size() << std::endl;
-    // std::cout << message_const.size() << std::endl;
-
-    // if(checkStrings(*message, message_const.c_str())) std::cout << "Messages are the same" <<std::endl;
-    // if(checkStrings(*hash, hash_const.c_str())) std::cout << "Hashes are the same" <<std::endl;
-
 
   return 1;
 }
