@@ -151,22 +151,14 @@ int findHash (int bits, char ** message, char ** hash) {
 
   int checkHash(int bits, char * hexString) {
     // DIY
-    std::cout<<"checkHash got hash: "<<hexString<<std::endl;
-    std::cout<<"BITS: "<<bits<<std::endl;
     int bigSteps = bits/8;
-    std::cout<<"big steps "<< bigSteps<<std::endl;
     for(int i = 0; i< bigSteps; i++){
       if(hexString[i] != 0)
         return 0;
     }
     int smallSteps = bits %8;
-    std::cout<<"small steps "<< smallSteps<<std::endl;
     char controlledByte = hexString[bigSteps];
-    //bitove posunout o x a zkontrolovat zda == 0
-    //smallSteps = 3 -> posun o 5
-    std::cout<<"controlled char begore: "<<" dec:"<<std::dec<<(short)controlledByte<<std::endl;
     controlledByte = controlledByte >> (8-smallSteps);
-    std::cout<<"controlled char after:"<<std::dec<<(char)controlledByte<<std::endl;
     if(controlledByte != 0)
       return 0;
     return 1;
