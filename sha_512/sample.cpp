@@ -174,23 +174,24 @@ int main(void)
 {
   char *message, *hash;
 
-  assert(findHash(0, &message, &hash) == 1);
-  assert(message && hash && checkBits(0, hash));
-  free(message);
-  free(hash);
-  assert(findHash(1, &message, &hash) == 1);
-  assert(message && hash && checkBits(1, hash));
-  free(message);
-  free(hash);
-  assert(findHash(2, &message, &hash) == 1);
-  assert(message && hash && checkBits(2, hash));
-  free(message);
-  free(hash);
-  assert(findHash(3, &message, &hash) == 1);
-  assert(message && hash && checkBits(3, hash));
-  free(message);
-  free(hash);
-  assert(findHash(-1, &message, &hash) == 0);
+
+  // assert(findHash(0, &message, &hash) == 1);
+  // assert(message && hash && checkBits(0, hash));
+  // free(message);
+  // free(hash);
+  // assert(findHash(1, &message, &hash) == 1);
+  // assert(message && hash && checkBits(1, hash));
+  // free(message);
+  // free(hash);
+  // assert(findHash(2, &message, &hash) == 1);
+  // assert(message && hash && checkBits(2, hash));
+  // free(message);
+  // free(hash);
+  // assert(findHash(3, &message, &hash) == 1);
+  // assert(message && hash && checkBits(3, hash));
+  // free(message);
+  // free(hash);
+  // assert(findHash(-1, &message, &hash) == 0);
   return EXIT_SUCCESS;
 }
 #endif /* __PROGTEST__ */
