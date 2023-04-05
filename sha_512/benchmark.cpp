@@ -189,7 +189,7 @@ int main(void)
 
     // testing
     const int max_bits = 15;
-    const int number_of_tests = 100;
+    const int number_of_tests = 400;
     for (int i = 0; i <= max_bits; i++)
     {
         unsigned int sum = 0;

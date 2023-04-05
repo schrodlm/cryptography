@@ -1,0 +1,10 @@
+Jelikož vydíme, že čas v strávený hledáním námi specifikovaného hashe, tedy hashe začínajícího na "n" bitů se zvyšuje exponencionálně,
+což je jednoduchá kombinatorická úvaha -> pro každé n+1 chceme nalézt o jeden bit (hodnoty 1 nebo 0), bude to exponenciála čísla 2
+
+-> tedy podle počtu bitů by problém měl zabrat přibližně 2^n mikrosekund , tuto úvahu potvrzuje i graf
+
+Pro 512 bitů by tedy měl problém zabrat: 2^512 mikrosekund 
+1 rok má 31 536 000 000 mikrosekund, od záčátku stvoření vesmíru uběhlo přibližně 13.8 billionu let -> to znamená, že uběhlo (13.8 * 10^9) * 31536000000 mikrosekund 
+-> to je přibližně 435196800000000000000 mikrosekund od začátku vesmíru -> to je 2^69 mikrosekund -> 1% 2^512 je přibližně 2^505 
+
+-> 2^68 je tedy přibližně 0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001% času kolik bychom potřebovali na získání takového hashe

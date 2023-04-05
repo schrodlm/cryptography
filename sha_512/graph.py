@@ -1,11 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-from PIL import Image
 
 # plotting the data
-collisions = np.array([3, 4, 5, 6, 7, 8])
-times =  np.array([10, 20, 40, 100, 200, 400])
+collisions = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+times =  np.array([5, 6, 8, 16, 24, 48, 91, 168, 330, 759, 1580, 2939, 5322, 10399, 21953, 45278])
 plt.plot(collisions, times, 'o', label='data')  #o=circle
 
 # creating model
@@ -27,7 +26,7 @@ print("Full collision time: ", model(512, a, b))
 # show the plot
 plt.legend(loc="upper left")
 plt.xlabel("Number of collision bits")
-plt.ylabel("Time")
+plt.ylabel("Time [microseconds]")
 plt.show()
 
 
