@@ -20,7 +20,6 @@
 // functions for generating randomness suitable for cryptography
 #include <openssl/rand.h>
 
-// benchmarking
 #include <chrono>
 
 #endif /* __PROGTEST__ */
@@ -31,115 +30,138 @@
 bool checkHash(int bits, unsigned char ct[EVP_MAX_MD_SIZE])
 {
 
-    int toTransform = ceil(bits / 8.0);
+  int toTransform = ceil(bits / 8.0);
 
-    for (int i = 0; i < toTransform; i++)
+  for (int i = 0; i < toTransform; i++)
+  {
+    int step = 7;
+    while (step >= 0)
     {
-        int step = 7;
-        while (step >= 0)
-        {
-            // check if nth bit is zero, if not return false
-            if (!((ct[i] >> step) == 0))
-                return false;
+      // check if nth bit is zero, if not return false
+      if (!((ct[i] >> step) == 0))
+        return false;
 
-            step--;
-            if (--bits == 0)
-                break;
-        }
+      step--;
+      if (--bits == 0)
+        break;
     }
+  }
 
-    return true;
+  return true;
 }
 
-int findHash(int bits, char **message, char **hash, int *tries)
+int findHash(int bits, char **message, char **hash,int *tries)
 {
-    // wrong input handling
-    if (bits < 0 || bits > 512)
+  // wrong input handling
+  if (bits < 0 || bits > 512)
+  {
+    return 0;
+  }
+
+  // object holds digestion intermediate state and other data related to the operation
+  EVP_MD_CTX *mdctx;
+
+  // structure that represents a message digest algorithm in OpenSSL's EVP library
+  const EVP_MD *md;
+
+  unsigned char md_value[EVP_MAX_MD_SIZE];
+  unsigned int md_len;
+
+  OpenSSL_add_all_digests();
+
+  md = EVP_get_digestbyname(DIGEST_NAME);
+  if (!md)
+  {
+    std::cout << "Unknown message digest " << DIGEST_NAME << std::endl;
+    return 0;
+  }
+
+  unsigned char open_text[MESS_LENGTH];
+
+  // Creating SHA-512 message
+  mdctx = EVP_MD_CTX_create();
+
+  do
+  {
+    tries++;
+
+    if (!RAND_bytes(open_text, MESS_LENGTH))
     {
-        return 0;
+      std::cerr << "Error: RAND_bytes failed" << std::endl;
+      return 0;
     }
 
-    // object holds digestion intermediate state and other data related to the operation
-    EVP_MD_CTX *mdctx;
-
-    // structure that represents a message digest algorithm in OpenSSL's EVP library
-    const EVP_MD *md;
-
-    if (message == NULL || hash == NULL)
+    if (!EVP_DigestInit_ex(mdctx, md, NULL))
     {
-        std::cout << "Error: Failed to allocate memory for message/hash." << std::endl;
-        return 0;
+      std::cerr << "Error: EVP_DigestInit_ex failed" << std::endl;
+      return 0;
     }
 
-    unsigned char md_value[EVP_MAX_MD_SIZE];
-    unsigned int md_len;
-
-    OpenSSL_add_all_digests();
-
-    md = EVP_get_digestbyname(DIGEST_NAME);
-    if (!md)
+    if (!EVP_DigestUpdate(mdctx, open_text, MESS_LENGTH))
     {
-        std::cout << "Unknown message digest " << DIGEST_NAME << std::endl;
-        return 0;
+      std::cerr << "Error: EVP_DigestUpdate failed" << std::endl;
+      return 0;
     }
 
-    unsigned char open_text[MESS_LENGTH];
-
-    do
+    if (!EVP_DigestFinal_ex(mdctx, md_value, &md_len))
     {
-        tries++;
-        // Creating SHA-512 message
-        mdctx = EVP_MD_CTX_create();
+      std::cerr << "Error: EVP_DigestFinal_ex failed" << std::endl;
+    }
 
-        if (!RAND_bytes(open_text, MESS_LENGTH))
-        {
-            std::cout << "RAND_bytes failed" << std::endl;
-        }
-        // open_text[MESS_LENGTH] = '\0';
+  } while (!checkHash(bits, md_value));
 
-        EVP_DigestInit_ex(mdctx, md, NULL);
-        EVP_DigestUpdate(mdctx, open_text, MESS_LENGTH);
-        EVP_DigestFinal_ex(mdctx, md_value, &md_len);
+  // newer version of EVP_MD_CTX_destroy;
+  EVP_MD_CTX_free(mdctx);
 
-        EVP_MD_CTX_destroy(mdctx);
+  std::ostringstream oss;
 
-    } while (!checkHash(bits, md_value));
+  // fill oss with text message in hexadecimal format
+  for (unsigned int i = 0; i < MESS_LENGTH; i++)
+    oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(open_text[i]);
 
-    std::ostringstream oss;
+  std::string message_const = oss.str();
 
-    // fill oss with text message in hexadecimal format
-    for (unsigned int i = 0; i < MESS_LENGTH; i++)
-        oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(open_text[i]);
+  // allocate memory for message output value
+  *message = (char *)malloc(sizeof(char) * 2 * (MESS_LENGTH + 1));
 
-    std::string message_const = oss.str();
+  if (*message == nullptr)
+  {
+    std::cerr << "Error: Failed to allocate memory for message output variable." << std::endl;
+    return 0;
+  }
 
-    // allocate memory for message output value
-    *message = (char *)malloc(sizeof(char) * 2 * (MESS_LENGTH + 1));
-    OPENSSL_strlcpy(*message, message_const.c_str(), sizeof(char) * message_const.size() + 1);
+  OPENSSL_strlcpy(*message, message_const.c_str(), sizeof(char) * message_const.size() + 1);
 
-    // empty ostringstream buffer
-    oss.str("");
+  // empty ostringstream buffer
+  oss.str("");
 
-    // fill oss with hash message in hexadecimal format
-    for (unsigned int i = 0; i < md_len; i++)
-        oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(md_value[i]);
+  // fill oss with hash message in hexadecimal format
+  for (unsigned int i = 0; i < md_len; i++)
+    oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(md_value[i]);
 
-    std::string hash_const = oss.str();
-    // allocate memory for hash output value
-    *hash = (char *)malloc(sizeof(char) * 2 * (EVP_MAX_MD_SIZE + 1));
-    OPENSSL_strlcpy(*hash, hash_const.c_str(), sizeof(char) * hash_const.size() + 1);
+  std::string hash_const = oss.str();
+  // allocate memory for hash output value
+  *hash = (char *)malloc(sizeof(char) * 2 * (EVP_MAX_MD_SIZE + 1));
 
-    EVP_cleanup();
+  if (*hash == nullptr)
+  {
+    std::cerr << "Error: Failed to allocate memory for hash output variable." << std::endl;
+    return 0;
+  }
 
-    //   std::cout << *message << std::endl;
-    //   std::cout << *hash << std::endl;
-    return 1;
+  OPENSSL_strlcpy(*hash, hash_const.c_str(), sizeof(char) * hash_const.size() + 1);
+
+  EVP_cleanup();
+
+  // std::cout << *message << std::endl;
+  // std::cout << *hash << std::endl;
+  return 1;
 }
 
 int findHashEx(int bits, char **message, char **hash, const char *hashFunction)
 {
-    /* TODO or use dummy implementation */
-    return 1;
+  /* TODO or use dummy implementation */
+  return 1;
 }
 
 #ifndef __PROGTEST__
@@ -147,30 +169,30 @@ int findHashEx(int bits, char **message, char **hash, const char *hashFunction)
 int checkBits(int bits, char *hexString)
 {
 
-    int bigSteps = bits / 4;
-    for (int i = 0; i < bigSteps; i++)
-    {
-        // check whole bytes
-        if (hexString[i] != '0')
-            return 0;
-    }
+  int bigSteps = bits / 4;
+  for (int i = 0; i < bigSteps; i++)
+  {
+    // check whole bytes
+    if (hexString[i] != '0')
+      return 0;
+  }
 
-    // converting hexadecimal character to binary
-    char testedChar = hexString[bigSteps];
-    if (hexString[bigSteps] >= '0' && hexString[bigSteps] <= '9')
-        testedChar -= '0';
-    else if (hexString[bigSteps] >= 'a' && hexString[bigSteps] <= 'f')
-        testedChar -= 'a' - 10;
+  // converting hexadecimal character to binary
+  char testedChar = hexString[bigSteps];
+  if (hexString[bigSteps] >= '0' && hexString[bigSteps] <= '9')
+    testedChar -= '0';
+  else if (hexString[bigSteps] >= 'a' && hexString[bigSteps] <= 'f')
+    testedChar -= 'a' - 10;
 
-    int smallSteps = bits - bigSteps * 4;
-    for (int i = 0; i < smallSteps; i++)
-    {
-        // bitmask
-        int bitmask = 1 << (3 - i);
-        if ((bitmask & testedChar) != 0)
-            return 0;
-    }
-    return 1;
+  int smallSteps = bits - bigSteps * 4;
+  for (int i = 0; i < smallSteps; i++)
+  {
+    // bitmask
+    int bitmask = 1 << (3 - i);
+    if ((bitmask & testedChar) != 0)
+      return 0;
+  }
+  return 1;
 }
 
 int main(void)

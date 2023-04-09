@@ -24,6 +24,7 @@
 
 #define DIGEST_NAME "sha512"
 #define MESS_LENGTH 20
+#define SHA_LENGTH 64
 
 bool checkHash(int bits, unsigned char ct[EVP_MAX_MD_SIZE])
 {
@@ -62,13 +63,7 @@ int findHash(int bits, char **message, char **hash)
   // structure that represents a message digest algorithm in OpenSSL's EVP library
   const EVP_MD *md;
 
-  if (message == NULL || hash == NULL)
-  {
-    std::cout << "Error: Failed to allocate memory for message/hash." << std::endl;
-    return 0;
-  }
-
-  unsigned char md_value[EVP_MAX_MD_SIZE];
+  unsigned char md_value[SHA_LENGTH];
   unsigned int md_len;
 
   OpenSSL_add_all_digests();
@@ -82,24 +77,39 @@ int findHash(int bits, char **message, char **hash)
 
   unsigned char open_text[MESS_LENGTH];
 
+  // Creating SHA-512 message
+  mdctx = EVP_MD_CTX_create();
+
   do
   {
-    // Creating SHA-512 message
-    mdctx = EVP_MD_CTX_create();
 
     if (!RAND_bytes(open_text, MESS_LENGTH))
     {
-      std::cout << "RAND_bytes failed" << std::endl;
+      std::cerr << "Error: RAND_bytes failed" << std::endl;
+      return 0;
     }
-    // open_text[MESS_LENGTH] = '\0';
 
-    EVP_DigestInit_ex(mdctx, md, NULL);
-    EVP_DigestUpdate(mdctx, open_text, MESS_LENGTH);
-    EVP_DigestFinal_ex(mdctx, md_value, &md_len);
+    if (!EVP_DigestInit_ex(mdctx, md, NULL))
+    {
+      std::cerr << "Error: EVP_DigestInit_ex failed" << std::endl;
+      return 0;
+    }
 
-    EVP_MD_CTX_destroy(mdctx);
+    if (!EVP_DigestUpdate(mdctx, open_text, MESS_LENGTH))
+    {
+      std::cerr << "Error: EVP_DigestUpdate failed" << std::endl;
+      return 0;
+    }
+
+    if (!EVP_DigestFinal_ex(mdctx, md_value, &md_len))
+    {
+      std::cerr << "Error: EVP_DigestFinal_ex failed" << std::endl;
+    }
 
   } while (!checkHash(bits, md_value));
+
+  // newer version of EVP_MD_CTX_destroy;
+  EVP_MD_CTX_free(mdctx);
 
   std::ostringstream oss;
 
@@ -111,6 +121,13 @@ int findHash(int bits, char **message, char **hash)
 
   // allocate memory for message output value
   *message = (char *)malloc(sizeof(char) * 2 * (MESS_LENGTH + 1));
+
+  if (*message == nullptr)
+  {
+    std::cerr << "Error: Failed to allocate memory for message output variable." << std::endl;
+    return 0;
+  }
+
   OPENSSL_strlcpy(*message, message_const.c_str(), sizeof(char) * message_const.size() + 1);
 
   // empty ostringstream buffer
@@ -122,19 +139,25 @@ int findHash(int bits, char **message, char **hash)
 
   std::string hash_const = oss.str();
   // allocate memory for hash output value
-  *hash = (char *)malloc(sizeof(char) * 2 * (EVP_MAX_MD_SIZE + 1));
+  *hash = (char *)malloc(sizeof(char) * 2 * (SHA_LENGTH + 1));
+
+  if (*hash == nullptr)
+  {
+    std::cerr << "Error: Failed to allocate memory for hash output variable." << std::endl;
+    return 0;
+  }
+
   OPENSSL_strlcpy(*hash, hash_const.c_str(), sizeof(char) * hash_const.size() + 1);
 
   EVP_cleanup();
 
-  std::cout << *message << std::endl;
-  std::cout << *hash << std::endl;
+  // std::cout << *message << std::endl;
+  // std::cout << *hash << std::endl;
   return 1;
 }
 
 int findHashEx(int bits, char **message, char **hash, const char *hashFunction)
 {
-  /* TODO or use dummy implementation */
   return 1;
 }
 
@@ -161,11 +184,10 @@ int checkBits(int bits, char *hexString)
   int smallSteps = bits - bigSteps * 4;
   for (int i = 0; i < smallSteps; i++)
   {
-    //bitmask
+    // bitmask
     int bitmask = 1 << (3 - i);
     if ((bitmask & testedChar) != 0)
       return 0;
-    
   }
   return 1;
 }
@@ -174,24 +196,23 @@ int main(void)
 {
   char *message, *hash;
 
-
-  // assert(findHash(0, &message, &hash) == 1);
-  // assert(message && hash && checkBits(0, hash));
-  // free(message);
-  // free(hash);
-  // assert(findHash(1, &message, &hash) == 1);
-  // assert(message && hash && checkBits(1, hash));
-  // free(message);
-  // free(hash);
-  // assert(findHash(2, &message, &hash) == 1);
-  // assert(message && hash && checkBits(2, hash));
-  // free(message);
-  // free(hash);
-  // assert(findHash(3, &message, &hash) == 1);
-  // assert(message && hash && checkBits(3, hash));
-  // free(message);
-  // free(hash);
-  // assert(findHash(-1, &message, &hash) == 0);
+  assert(findHash(0, &message, &hash) == 1);
+  assert(message && hash && checkBits(0, hash));
+  free(message);
+  free(hash);
+  assert(findHash(1, &message, &hash) == 1);
+  assert(message && hash && checkBits(1, hash));
+  free(message);
+  free(hash);
+  assert(findHash(2, &message, &hash) == 1);
+  assert(message && hash && checkBits(2, hash));
+  free(message);
+  free(hash);
+  assert(findHash(3, &message, &hash) == 1);
+  assert(message && hash && checkBits(3, hash));
+  free(message);
+  free(hash);
+  assert(findHash(-1, &message, &hash) == 0);
   return EXIT_SUCCESS;
 }
 #endif /* __PROGTEST__ */
