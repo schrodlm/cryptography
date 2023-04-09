@@ -33,6 +33,8 @@ void print_iv(int type, crypto_config &config);
 
 #endif /* _PROGTEST_ */
 
+bool genericCipher(const std::string &in_filename, const std::string &out_filename, crypto_config &config, bool isEncrypt);
+
 #define HEADER_SIZE 18
 
 //===============================================================================================
@@ -42,32 +44,16 @@ void cipherExitFree(FILE *in_file, FILE *out_file, EVP_CIPHER_CTX *ctx);
 
 bool encrypt_data(const std::string &in_filename, const std::string &out_filename, crypto_config &config)
 {
-	// soubor si mám pry otevirat po částech
-	/**
-	 * Vstupní a výstupní soubory mohou být velké, větší než je velikost dostupné paměti.
-	 * Obecně se proto při práci se soubory snažíme data zpracovávat průběžně.
-	 * Není rozumné celý vstupní soubor načíst do paměti a pak jej v paměti zpracovávat.
-	 * Poslední test kontroluje paměťové nároky Vašeho řešení. Selže, pokud se pokusíte udržovat v paměti najednou celé soubory nebo jejich velké části.
-	 */
+	return genericCipher(in_filename, out_filename, config, true);
+}
 
-	// -> u toho plyne, že by nejspíš bylo nejlepší zpracovávat soubor přesně po blocích
+bool decrypt_data(const std::string &in_filename, const std::string &out_filename, crypto_config &config)
+{
+	return genericCipher(in_filename, out_filename, config, false);
+}
 
-	/*
-
-		Před tímto bych měl asi ještě obejít tu hlavičku (prvních 18 bytu)
-
-	 ===== Encryption process ====
-		1. Generate random initialization vector (IV)
-			- musím checkovat jestli ho šifra potřebuje, pokud ano, čeknout jestli je ten poskytnutý dost dlouhý
-			  když ne tak vygenerovat novej
-			- zjistit velikost IV -  EVP_CIPHER_iv_length(cipher)
-
-
-		2. Initialize encryption key and context
-		- zjistit veliksot klíče - EVP_CIPHER_key_length(cipher)
-
-
-	*/
+bool genericCipher(const std::string &in_filename, const std::string &out_filename, crypto_config &config, bool isEncrypt)
+{
 	// INITIALIZE CIPHER OBJECT
 	const EVP_CIPHER *cipher = EVP_get_cipherbyname(config.m_crypto_function);
 	if (cipher == NULL)
@@ -83,6 +69,9 @@ bool encrypt_data(const std::string &in_filename, const std::string &out_filenam
 	// checking if key size is appropriate for given cipher and if not generate appropriate one
 	if (config.m_key_len != cipher_key_length)
 	{
+		// if we are decrypting and cipher key doesnt match - we exit
+		if (!isEncrypt)
+			return false;
 		// generate new key
 		std::unique_ptr<uint8_t[]> new_key_ptr = std::make_unique<uint8_t[]>(cipher_key_length);
 
@@ -115,6 +104,11 @@ bool encrypt_data(const std::string &in_filename, const std::string &out_filenam
 		// it is not so I need to generate appropriate one
 		if (config.m_IV_len != cipher_iv_length)
 		{
+			// if we are decrypting and cipher IV doesnt match - we exit
+			if (!isEncrypt)
+				return false;
+
+
 			std::unique_ptr<uint8_t[]> new_iv = std::make_unique<uint8_t[]>(cipher_iv_length);
 
 			if (RAND_bytes(new_iv.get(), cipher_iv_length) != 1)
@@ -171,15 +165,17 @@ bool encrypt_data(const std::string &in_filename, const std::string &out_filenam
 	unsigned char header_buffer[HEADER_SIZE];
 	size_t header_bytes_read = fread(header_buffer, 1, HEADER_SIZE, in_file);
 
-	if (header_bytes_read > 17) {
-        fwrite(header_buffer, 1, header_bytes_read, out_file);
-    } else {
+	if (header_bytes_read > 17)
+	{
+		fwrite(header_buffer, 1, header_bytes_read, out_file);
+	}
+	else
+	{
 		std::cerr << "Error while copying header." << std::endl;
 		fclose(in_file);
 		fclose(out_file);
 		return false;
-
-    }
+	}
 
 	// Cipher context
 	EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
@@ -195,7 +191,7 @@ bool encrypt_data(const std::string &in_filename, const std::string &out_filenam
 	}
 
 	// Initialize cipher
-	if (EVP_EncryptInit_ex(ctx, cipher, NULL, config.m_key.get(), (cipher_iv_length > 0) ? config.m_IV.get() : NULL) != 1)
+	if (EVP_CipherInit_ex(ctx, cipher, NULL, config.m_key.get(), (cipher_iv_length > 0) ? config.m_IV.get() : NULL, isEncrypt) != 1)
 	{
 		std::cerr << "Failed to initialize encryption" << std::endl;
 		cipherExitFree(in_file, out_file, ctx);
@@ -224,7 +220,6 @@ bool encrypt_data(const std::string &in_filename, const std::string &out_filenam
 
 	if (EVP_CipherFinal_ex(ctx, ciphertext.get(), &ciphertext_len) != 1)
 	{
-		/* Handle error */
 		std::cerr << "Failed final encryption" << std::endl;
 		cipherExitFree(in_file, out_file, ctx);
 		return false;
@@ -235,11 +230,6 @@ bool encrypt_data(const std::string &in_filename, const std::string &out_filenam
 	cipherExitFree(in_file, out_file, ctx);
 
 	return 0;
-}
-
-bool decrypt_data(const std::string &in_filename, const std::string &out_filename, crypto_config &config)
-{
-	return true;
 }
 
 #ifndef __PROGTEST__
@@ -274,6 +264,7 @@ int main(void)
 	config.m_key_len = 16;
 
 	encrypt_data("homer-simpson.TGA", "homer_AES_ECB1.TGA", config);
+	decrypt_data("homer_AES_ECB1.TGA", "test.TGA", config);
 
 	// CONFIG 2
 	//====================================
