@@ -26,6 +26,14 @@
 #define MESS_LENGTH 20
 #define SHA_LENGTH 64
 
+/**
+ * @brief checks if provided hash has atleast "bits" 0 from the start of it (from the left side)
+ * 
+ * @param bits    - number of 0 we want from the start of the hash 
+ * @param ct      - hash
+ * @return true 
+ * @return false 
+ */
 bool checkHash(int bits, unsigned char ct[EVP_MAX_MD_SIZE])
 {
 
@@ -49,6 +57,14 @@ bool checkHash(int bits, unsigned char ct[EVP_MAX_MD_SIZE])
   return true;
 }
 
+/**
+ * @brief Finds open text that when hashed using SHA512, it's hash will have atleast "bits" 0 from the left (start of the hash)  
+ * 
+ * @param bits        - how many zeroes at the start of the hash
+ * @param message     - will be filled with OT that corresponds to hash we want (output parameter)   
+ * @param hash        - will be filled with hash that has atleast "bits" 0 (output parameter)
+ * @return int 
+ */
 int findHash(int bits, char **message, char **hash)
 {
   // wrong input handling
@@ -86,24 +102,29 @@ int findHash(int bits, char **message, char **hash)
     if (!RAND_bytes(open_text, MESS_LENGTH))
     {
       std::cerr << "Error: RAND_bytes failed" << std::endl;
+      EVP_MD_CTX_free(mdctx);
       return 0;
     }
 
     if (!EVP_DigestInit_ex(mdctx, md, NULL))
     {
       std::cerr << "Error: EVP_DigestInit_ex failed" << std::endl;
+      EVP_MD_CTX_free(mdctx);
       return 0;
     }
 
     if (!EVP_DigestUpdate(mdctx, open_text, MESS_LENGTH))
     {
       std::cerr << "Error: EVP_DigestUpdate failed" << std::endl;
+      EVP_MD_CTX_free(mdctx);
       return 0;
     }
 
     if (!EVP_DigestFinal_ex(mdctx, md_value, &md_len))
     {
       std::cerr << "Error: EVP_DigestFinal_ex failed" << std::endl;
+      EVP_MD_CTX_free(mdctx);
+      return 0;
     }
 
   } while (!checkHash(bits, md_value));
@@ -151,8 +172,6 @@ int findHash(int bits, char **message, char **hash)
 
   EVP_cleanup();
 
-  // std::cout << *message << std::endl;
-  // std::cout << *hash << std::endl;
   return 1;
 }
 
@@ -163,6 +182,13 @@ int findHashEx(int bits, char **message, char **hash, const char *hashFunction)
 
 #ifndef __PROGTEST__
 
+/**
+ * @brief checks if C string has atleast "bits" 0 bits from the start of the string
+ * 
+ * @param bits        - bits from the left we want to be 0 
+ * @param hexString   - C string in hexadecimal format
+ * @return int        - 1 -> C string has atleast "bits" bits
+ */
 int checkBits(int bits, char *hexString)
 {
 
