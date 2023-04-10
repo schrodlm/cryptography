@@ -18,6 +18,10 @@
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 
+/**
+ * @brief Block cipher configuration
+ * 
+ */
 struct crypto_config
 {
 	const char *m_crypto_function;
@@ -27,32 +31,68 @@ struct crypto_config
 	size_t m_IV_len;
 };
 
-// debug functions
-// void print_key(bool wasChanged, crypto_config &config);
-// void print_iv(int type, crypto_config &config);
-
 #endif /* _PROGTEST_ */
 
-bool genericCipher(const std::string &in_filename, const std::string &out_filename, crypto_config &config, bool isEncrypt);
+bool blockCipherGeneric(const std::string &in_filename, const std::string &out_filename, crypto_config &config, bool isEncrypt);
 
+/**
+ * @brief Header size of a TGA Image file (only the main header) 
+ * 
+ */
 #define HEADER_SIZE 18
 
 //===============================================================================================
 // HELPING FUNCTIONS DECLARATIONS
 //===============================================================================================
 void cipherExitFree(FILE *in_file, FILE *out_file, EVP_CIPHER_CTX *ctx);
+void print_key(bool wasChanged, crypto_config &config);
+void print_iv(int type, crypto_config &config);
 
+
+/**
+ * @brief Encrypts provided TGA file into output TGA file
+ * 
+ * @param in_filename  	- input TGA
+ * @param out_filename 	- output TGA
+ * @param config 		- cipher configuration
+ * @return true 		- encryption was succesful
+ * @return false 		- encryption failed
+ */
 bool encrypt_data(const std::string &in_filename, const std::string &out_filename, crypto_config &config)
 {
-	return genericCipher(in_filename, out_filename, config, true);
+	return blockCipherGeneric(in_filename, out_filename, config, true);
 }
 
+/**
+ * @brief Decrypts provided TGA file into output TGA file
+ * 
+ * @param in_filename 	- input TGA
+ * @param out_filename 	- output TGA
+ * @param config 		- cipher configuration
+ * @return true 		- decryption was succesful
+ * @return false 		- decryption failed
+ */
 bool decrypt_data(const std::string &in_filename, const std::string &out_filename, crypto_config &config)
 {
-	return genericCipher(in_filename, out_filename, config, false);
+	return blockCipherGeneric(in_filename, out_filename, config, false);
 }
 
-bool genericCipher(const std::string &in_filename, const std::string &out_filename, crypto_config &config, bool isEncrypt)
+/**
+ * @brief This function is able to encrypt or decrypt TGA file with ANY block cipher based on provided input, it behaves a little different for each encryption 
+ * and decryption.
+ * 
+ * For encryption if wrong IV/key is provided (based on provided block cipher), new IV/key will be generated.
+ * For decryption if wrong IV/key is provided function will fail.
+ * 
+ * 
+ * @param in_filename 
+ * @param out_filename 
+ * @param config 
+ * @param isEncrypt 
+ * @return true 
+ * @return false 
+ */
+bool blockCipherGeneric(const std::string &in_filename, const std::string &out_filename, crypto_config &config, bool isEncrypt)
 {
 	OpenSSL_add_all_ciphers();
 	// INITIALIZE CIPHER OBJECT
@@ -88,11 +128,11 @@ bool genericCipher(const std::string &in_filename, const std::string &out_filena
 		config.m_key_len = cipher_key_length;
 
 		// DEBUG
-		// print_key(true, config);
+		print_key(true, config);
 	}
-	// DEBUG
-	// else
-	// 	print_key(false, config);
+	//DEBUG
+	else
+		print_key(false, config);
 
 	//===============================================================================================
 	// IV VECTOR CHECK
@@ -123,16 +163,17 @@ bool genericCipher(const std::string &in_filename, const std::string &out_filena
 			config.m_IV_len = cipher_iv_length;
 
 			// DEBUG
-			// print_iv(0, config);
+			print_iv(0, config);
 		}
 		// else
-		// 	print_iv(1, config);
+		print_iv(1, config);
 	}
 	// provided cipher doesnt need IV vector
-	// else
-	// {
-	// 	print_iv(2, config);
-	// }
+	else
+	{
+		print_iv(2, config);
+	}
+	std::cout << "---------------------------------" << std::endl;
 
 	//===============================================================================================
 	// GENERATING ENCRYPTION INTO OUTPUT FILE BY BLOCK SIZE
@@ -184,7 +225,7 @@ bool genericCipher(const std::string &in_filename, const std::string &out_filena
 
 	// TODO: Have to check the 18 bytes if it is really a TGA HEADER
 
-	// Initialize cipher
+	// Initialize cipher ( there is is decided if it encryption or decryption will be applied)
 	if (EVP_CipherInit_ex(ctx, cipher, NULL, config.m_key.get(), (cipher_iv_length > 0) ? config.m_IV.get() : NULL, isEncrypt) != 1)
 	{
 		std::cerr << "Failed to initialize encryption" << std::endl;
@@ -243,11 +284,23 @@ bool genericCipher(const std::string &in_filename, const std::string &out_filena
 
 	cipherExitFree(in_file, out_file, ctx);
 
+	std::cout << "Cipher finished successfully!" <<std::endl;
+	std::cout << "---------------------------------" << std::endl;
+
 	return true;
 }
+
 //===============================================================================================
 // HELPING FUNCTIONS
 //===============================================================================================
+
+/**
+ * @brief Frees memory of a file iterators and context of a cipher
+ * 
+ * @param in_file  	- file
+ * @param out_file 	- file
+ * @param ctx 		- cipher context
+ */
 void cipherExitFree(FILE *in_file, FILE *out_file, EVP_CIPHER_CTX *ctx)
 {
 
@@ -256,8 +309,14 @@ void cipherExitFree(FILE *in_file, FILE *out_file, EVP_CIPHER_CTX *ctx)
 	EVP_CIPHER_CTX_free(ctx);
 }
 
-#ifndef __PROGTEST__
-
+/**
+ * @brief Compares two files by their binary content
+ * 
+ * @param name1 	- path to the first file 
+ * @param name2  	- path to the second file
+ * @return true  	- files are the same
+ * @return false  	- files are different
+ */
 bool compare_files(const char *name1, const char *name2)
 {
 	std::ifstream f1(name1, std::ifstream::binary | std::ifstream::ate);
@@ -281,116 +340,14 @@ bool compare_files(const char *name1, const char *name2)
 					  std::istreambuf_iterator<char>(f2.rdbuf()));
 }
 
-int main(void)
-{
-	// // CONFIG 1
-	// //====================================
+//HELPING DEBUG FUNCTIONS
 
-	// crypto_config config{nullptr, nullptr, nullptr, 0, 0};
-
-	// // ECB mode
-	// config.m_crypto_function = "AES-128-ECB";
-	// config.m_key = std::make_unique<uint8_t[]>(16);
-	// memset(config.m_key.get(), 0, 16);
-	// config.m_key_len = 16;
-
-	// encrypt_data("homer-simpson.TGA", "homer_AES_ECB1.TGA", config);
-	// decrypt_data("homer_AES_ECB1.TGA", "test.TGA", config);
-
-	// // CONFIG 2
-	// //====================================
-
-	// crypto_config config2{nullptr, nullptr, nullptr, 0, 0};
-
-	// // ECB mode
-	// config2.m_crypto_function = "AES-128-ECB";
-	// config2.m_key = std::make_unique<uint8_t[]>(6);
-	// memset(config2.m_key.get(), 0, 6);
-	// config2.m_key_len = 6;
-
-	// encrypt_data("homer-simpson.TGA", "homer_AES_ECB.TGA", config2);
-
-	// // CONFIG 3
-	// //====================================
-	// crypto_config config3{nullptr, nullptr, nullptr, 0, 0};
-
-	// config3.m_crypto_function = "AES-128-CBC";
-	// config3.m_IV = std::make_unique<uint8_t[]>(17);
-	// config3.m_IV_len = 17;
-	// memset(config3.m_IV.get(), 0, 17);
-
-	// encrypt_data("homer-simpson.TGA", "homer_AES_CBC.TGA", config3);
-
-	//=====================================================================
-	//=====================================================================
-	//=====================================================================
-
-	crypto_config config{nullptr, nullptr, nullptr, 0, 0};
-
-	// ECB mode
-	config.m_crypto_function = "AES-128-ECB";
-	config.m_key = std::make_unique<uint8_t[]>(16);
-	memset(config.m_key.get(), 0, 16);
-	config.m_key_len = 16;
-
-	// assert(compare_files("out_file.TGA", "out_file.TGA"));
-
-	assert(encrypt_data("homer-simpson.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "homer-simpson_enc_ecb.TGA"));
-
-	assert(decrypt_data("homer-simpson_enc_ecb.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "homer-simpson.TGA"));
-
-	assert(encrypt_data("UCM8.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "UCM8_enc_ecb.TGA"));
-
-	assert(decrypt_data("UCM8_enc_ecb.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "UCM8.TGA"));
-
-	assert(encrypt_data("image_1.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "ref_1_enc_ecb.TGA"));
-
-	assert(encrypt_data("image_2.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "ref_2_enc_ecb.TGA"));
-
-	assert(decrypt_data("image_3_enc_ecb.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "ref_3_dec_ecb.TGA"));
-
-	assert(decrypt_data("image_4_enc_ecb.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "ref_4_dec_ecb.TGA"));
-
-	// CBC mode
-	config.m_crypto_function = "AES-128-CBC";
-	config.m_IV = std::make_unique<uint8_t[]>(16);
-	config.m_IV_len = 16;
-	memset(config.m_IV.get(), 0, 16);
-
-	assert(encrypt_data("UCM8.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "UCM8_enc_cbc.TGA"));
-
-	assert(decrypt_data("UCM8_enc_cbc.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "UCM8.TGA"));
-
-	assert(encrypt_data("homer-simpson.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "homer-simpson_enc_cbc.TGA"));
-
-	assert(decrypt_data("homer-simpson_enc_cbc.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "homer-simpson.TGA"));
-
-	assert(encrypt_data("image_1.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "ref_5_enc_cbc.TGA"));
-
-	assert(encrypt_data("image_2.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "ref_6_enc_cbc.TGA"));
-
-	assert(decrypt_data("image_7_enc_cbc.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "ref_7_dec_cbc.TGA"));
-
-	assert(decrypt_data("image_8_enc_cbc.TGA", "out_file.TGA", config) &&
-		   compare_files("out_file.TGA", "ref_8_dec_cbc.TGA"));
-	return 0;
-}
-
+/**
+ * @brief Will print key and information if generating new key was neccessary
+ * 
+ * @param wasChanged - generating new key was neccessary
+ * @param config  - config of a cipher
+ */
 void print_key(bool wasChanged, crypto_config &config)
 {
 	if (wasChanged)
@@ -412,6 +369,14 @@ void print_key(bool wasChanged, crypto_config &config)
 	std::cout << std::endl;
 }
 
+/**
+ * @brief Will print IV and information if generating new IV was neccessary
+ * 
+ * @param type - 	- 0 -> New IV vector needed to be generated 
+ * 					- 1 -> Original IV was good
+ * 					- 2 -> Provided cipher doesn't need IV 
+ * @param config - config of a cipher
+ */
 void print_iv(int type, crypto_config &config)
 {
 	if (type == 0)
@@ -437,6 +402,27 @@ void print_iv(int type, crypto_config &config)
 		std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(config.m_IV[i]);
 	}
 	std::cout << std::endl;
+}
+
+#ifndef __PROGTEST__
+
+int main(void)
+{
+
+	crypto_config config{nullptr, nullptr, nullptr, 0, 0};
+
+	// ECB mode
+	config.m_crypto_function = "AES-128-ECB";
+	config.m_key = std::make_unique<uint8_t[]>(16);
+	memset(config.m_key.get(), 0, 16);
+	config.m_key_len = 16;
+
+	encrypt_data("original_image.TGA", "aes-ecb.tga", config);
+	//decrypt_data("homer_AES_ECB1.TGA", "test.TGA", config);
+
+	config.m_crypto_function = "AES-128-CBC";
+	encrypt_data("original_image.tga", "aes-cbc.tga", config);
+
 }
 
 #endif /* _PROGTEST_ */

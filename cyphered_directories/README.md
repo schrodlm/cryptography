@@ -1,3 +1,20 @@
+# Způsob šifrování módů ECB a CBC
+
+## ECB
+
+**ECB (Electronic Codebook)** je mód blokových šifer, kde každý blok otevřeného textu je šifrován nezávisle s použitím stejného šifrovacího klíče. Po zašifrování všech bloků této operace se bloky spojí a vzniká šifrovaný text.
+
+Jedna z nevýhod ECB módu je ta, že je **deterministický**, to znamená, že stejný OT vždy vygeneruje stejný ŠT. Tato vlastnost je využitelná útočníky, kteří mohou analyzovat šifrový text a extrahovat informace o OT.
+
+V kontextu šifrování obrázku (např. TGA) to znamená, že vzory a struktura v originálním obrázku může být stále rozpoznatelná v zašifrovaném. Tyto vzory a struktury mohou být např. prostory se stejnou barvou.
+
+
+## CBC
+
+Aby se vyřešila původní nevýhoda ECB, existují jiné módy, jako například právě **CBC (Cipher Block Chaining)**. Každý blok je XORován s předchozím blokem šifrového textu a klíčem, čímž je pro útočníka mnohem šložitější indentifikovat vzory a struktury ŠT. Navíc CBC využívá **inicializační vektor (IV)**, který je používán pro zašifrování prvního bloku OT, což přidává navíc náhodnost do celého procesu šifrování.
+
+
+# Původní zadání
 Vaším úkolem je realizovat dvě (či více) funkcí, (ne celý program), které dokáží zašifrovat a dešifrovat obrázkový soubor ve formátu [TGA](http://www.paulbourke.net/dataformats/tga/).
 
 Pro naši úlohu budeme uvažovat zjednodušenou formu obrázku:
