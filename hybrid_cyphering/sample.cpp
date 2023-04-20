@@ -80,23 +80,6 @@ void file_closer(FILE *file)
     }
 }
 
-class File
-{
-public:
-    File(FILE* _file, std::string _path){
-        file = _file;
-        path = _path;
-    }
-
-    ~File(){
-        fclose(file);
-        std::remove(path.c_str());
-    }
-
-    FILE *file;
-    std::string path;
-};
-
 /**
  * Loads up public key from a file
  */
@@ -154,6 +137,8 @@ std::unique_ptr<uint8_t[]> encryptSymmetricKey(const unique_ptr<RSA, decltype(&r
     return encrypted_key;
 }
 
+bool encryptDecrypt(std::unique_ptr<FILE, decltype(&file_closer)>& in_file,std::unique_ptr<FILE, decltype(&file_closer)>& out_file, 
+const char* outFile, const char* inFile,const EVP_CIPHER *cipher,  std::unique_ptr<uint8_t[]>& key,  std::unique_ptr<uint8_t[]>& iv, bool isEncrypt );
 /**
 *   Funkce vygeneruje symetrický (sdílený) klíč a inicializační vektor (dále IV), který bude vstupem do symetrické šifry symmetricCipher.
     Touto šifrou, klíčem a IV zašifrujete data v inFile.
@@ -263,21 +248,37 @@ bool seal(const char *inFile, const char *outFile, const char *publicKeyFile, co
     // id of used symmetric cipher
     int nid = EVP_CIPHER_nid(cipher);
     if (!writeToFile(&nid, nid_reserved_bytes, out_file.get()))
+    {
+        out_file.reset();
+        std::remove(outFile);
         return false;
+    }
 
     // length of ciphered key
     if (!writeToFile(&rsa_size, rsa_encrypted_key_reserved_bytes, out_file.get()))
+    {
+        out_file.reset();
+        std::remove(outFile);
         return false;
+    }
 
     // rsa encrypted key
     if (!writeToFile(encrypted_symmetric_key.get(), rsa_size, out_file.get()))
+    {
+        out_file.reset();
+        std::remove(outFile);
         return false;
+    }
 
     // IV (only if symmetric cipher we used also used IV)
     if (iv_length > 0)
     {
         if (!writeToFile(symmetric_iv.get(), iv_length, out_file.get()))
+        {
+            out_file.reset();
+            std::remove(outFile);
             return false;
+        }
     }
 
     // DEBUG
@@ -296,58 +297,12 @@ bool seal(const char *inFile, const char *outFile, const char *publicKeyFile, co
     if (in_file == NULL)
     {
         std::cerr << "Could not open the output file: " << inFile << std::endl;
+        out_file.reset();
+        std::remove(outFile);
         return false;
     }
 
-    std::unique_ptr<uint8_t[]> in_buffer = std::make_unique<uint8_t[]>(BUFF_LEN);
-    std::unique_ptr<uint8_t[]> out_buffer = std::make_unique<uint8_t[]>(BUFF_LEN);
-
-    int in_buff_len;
-    int out_buff_len;
-
-    unique_ptr<EVP_CIPHER_CTX, decltype(&ctx_destructor)> ctx = unique_ptr<EVP_CIPHER_CTX, decltype(&ctx_destructor)>(EVP_CIPHER_CTX_new(), &ctx_destructor);
-
-    if (EVP_EncryptInit_ex(ctx.get(), cipher, NULL, symmetric_key.get(), (symmetric_key_length > 0) ? symmetric_iv.get() : NULL) != 1)
-    {
-        std::cerr << "Cipher Initialization failed" << std::endl;
-        return false;
-    }
-
-    while ((in_buff_len = fread(in_buffer.get(), 1, BUFF_LEN, in_file.get())) > 0)
-    {
-        if (EVP_CipherUpdate(ctx.get(), out_buffer.get(), &out_buff_len, in_buffer.get(), in_buff_len) != 1)
-        {
-            std::cerr << "Failed to update encryption" << std::endl;
-            return false;
-        }
-
-        if (fwrite(out_buffer.get(), 1, out_buff_len, out_file.get()) != (size_t)out_buff_len)
-        {
-            std::cerr << "Error: Could not write encrypted data to output file" << std::endl;
-            return false;
-        }
-    }
-
-    if (ferror(in_file.get()) || !feof(in_file.get()) || in_buff_len < 0)
-    {
-        std::cerr << "Error in input file" << std::endl;
-
-        return false;
-    }
-
-    if (EVP_CipherFinal_ex(ctx.get(), out_buffer.get(), &out_buff_len) != 1)
-    {
-        std::cerr << "Failed final encryption" << std::endl;
-        return false;
-    }
-
-    if (fwrite(out_buffer.get(), 1, out_buff_len, out_file.get()) != (size_t)out_buff_len)
-    {
-        std::cerr << "Error: Could not write encrypted data to output file" << std::endl;
-        return false;
-    };
-
-    std::cout << "-----------------------" << std::endl;
+    if(!encryptDecrypt(in_file, out_file, outFile, inFile, cipher, symmetric_key, symmetric_iv, true )) return false;
     return true;
 }
 /**
@@ -465,13 +420,6 @@ bool open(const char *inFile, const char *outFile, const char *privateKeyFile)
     // DECRYPT THE DATA WITH NOW ENCRYPTED KEY
     //==================================================================================
 
-    std::unique_ptr<uint8_t[]> buffer = std::make_unique<uint8_t[]>(BUFF_LEN);
-    std::unique_ptr<uint8_t[]> ciphertext = std::make_unique<uint8_t[]>(BUFF_LEN);
-
-    int buffer_len;
-    int ciphertext_len;
-
-    // open output file
     //  Open input file
     std::unique_ptr<FILE, decltype(&file_closer)> out_file(fopen(outFile, "wb"), &file_closer);
     if (in_file == NULL)
@@ -480,49 +428,80 @@ bool open(const char *inFile, const char *outFile, const char *privateKeyFile)
         return false;
     }
 
+    if(!encryptDecrypt(in_file, out_file, outFile, inFile, cipher, symmetric_key, iv, false)) return false;
+
+    return true;
+}
+
+
+/**
+ * Generic function for encrypting and decrypting with symmetrical ciphers
+*/
+bool encryptDecrypt(std::unique_ptr<FILE, decltype(&file_closer)>& in_file,std::unique_ptr<FILE, decltype(&file_closer)>& out_file, 
+const char* outFile, const char* inFile,const EVP_CIPHER *cipher,  std::unique_ptr<uint8_t[]>& key,  std::unique_ptr<uint8_t[]>& iv, bool isEncrypt )
+{
+    
+    std::unique_ptr<uint8_t[]> in_buffer = std::make_unique<uint8_t[]>(BUFF_LEN);
+    std::unique_ptr<uint8_t[]> out_buffer = std::make_unique<uint8_t[]>(BUFF_LEN);
+
+    int in_buff_len;
+    int out_buff_len;
+
     unique_ptr<EVP_CIPHER_CTX, decltype(&ctx_destructor)> ctx = unique_ptr<EVP_CIPHER_CTX, decltype(&ctx_destructor)>(EVP_CIPHER_CTX_new(), &ctx_destructor);
 
-    if (EVP_DecryptInit_ex(ctx.get(), cipher, NULL, symmetric_key.get(), (iv_length > 0) ? iv.get() : NULL) != 1)
+    if (EVP_CipherInit_ex(ctx.get(), cipher, NULL, key.get(), (EVP_CIPHER_iv_length(cipher) > 0) ? iv.get() : NULL, isEncrypt) != 1)
     {
-        std::cerr << "Failed to initialize encryption" << std::endl;
+        std::cerr << "Cipher Initialization failed" << std::endl;
+        out_file.reset();
+        std::remove(outFile);
         return false;
     }
 
-    while ((buffer_len = fread(buffer.get(), 1, BUFF_LEN, in_file.get())) > 0)
+    while ((in_buff_len = fread(in_buffer.get(), 1, BUFF_LEN, in_file.get())) > 0)
     {
-        if (EVP_CipherUpdate(ctx.get(), ciphertext.get(), &ciphertext_len, buffer.get(), buffer_len) != 1)
+        if (EVP_CipherUpdate(ctx.get(), out_buffer.get(), &out_buff_len, in_buffer.get(), in_buff_len) != 1)
         {
             std::cerr << "Failed to update encryption" << std::endl;
+            out_file.reset();
+            std::remove(outFile);
             return false;
         }
 
-        if (fwrite(ciphertext.get(), 1, ciphertext_len, out_file.get()) != (size_t)ciphertext_len)
+        if (fwrite(out_buffer.get(), 1, out_buff_len, out_file.get()) != (size_t)out_buff_len)
         {
             std::cerr << "Error: Could not write encrypted data to output file" << std::endl;
+            out_file.reset();
+            std::remove(outFile);
             return false;
         }
     }
 
-    if (ferror(in_file.get()) || !feof(in_file.get()) || buffer_len < 0)
+    if (ferror(in_file.get()) || !feof(in_file.get()) || in_buff_len < 0)
     {
         std::cerr << "Error in input file" << std::endl;
+        out_file.reset();
+        std::remove(outFile);
+
         return false;
     }
 
-    if (EVP_CipherFinal_ex(ctx.get(), ciphertext.get(), &ciphertext_len) != 1)
+    if (EVP_CipherFinal_ex(ctx.get(), out_buffer.get(), &out_buff_len) != 1)
     {
         std::cerr << "Failed final encryption" << std::endl;
+        out_file.reset();
+        std::remove(outFile);
         return false;
     }
 
-    if (fwrite(ciphertext.get(), 1, ciphertext_len, out_file.get()) != (size_t)ciphertext_len)
+    if (fwrite(out_buffer.get(), 1, out_buff_len, out_file.get()) != (size_t)out_buff_len)
     {
         std::cerr << "Error: Could not write encrypted data to output file" << std::endl;
+        out_file.reset();
+        std::remove(outFile);
         return false;
     };
-    std::cout << "Cipher finished successfully!" << std::endl;
-    std::cout << "---------------------------------" << std::endl;
 
+    std::cout << "-----------------------" << std::endl;
     return true;
 }
 
