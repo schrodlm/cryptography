@@ -419,6 +419,9 @@ int main(void)
 
 	encrypt_data("original_image.TGA", "aes-ecb.tga", config);
 	//decrypt_data("homer_AES_ECB1.TGA", "test.TGA", config);
+	encrypt_data("in_5152359.bin", "out.bin", config);
+
+
 
 	config.m_crypto_function = "AES-128-CBC";
 	encrypt_data("original_image.tga", "aes-cbc.tga", config);
